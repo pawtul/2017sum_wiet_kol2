@@ -1,128 +1,87 @@
-#
-# Class diary  
-#
-# Create program for handling lesson scores.
-# Use python to handle student (highscool) class scores, and attendance.
-# Make it possible to:
-# - Get students total average score (average across classes)
-# - get students average score in class
-# - hold students name and surname
-# - Count total attendance of student
-# The default interface for interaction should be python interpreter.
-# Please, use your imagination and create more functionalities. 
-# Your project should be able to handle entire school.
-# If you have enough courage and time, try storing (reading/writing) 
-# data in text files (YAML, JSON).
-# If you have even more courage, try implementing user interface.
-
-from itertools import chain
+import argparse
+import json
 
 
-class Student(object):
-    def __init__(self, name, surname):
-        self.name = name
-        self.surname = surname
-        self.grades = []
-        self.attendances = []
+class Diary(object):
+    def __init__(self, students_data=None):
+        # students_data:
+        #{
+        #   'STUDENT1':
+        #       {
+        #       'SUBJECT1': {
+        #               'Attendance': N,
+        #               'Grades': [N, N, N, ...]
+        #           },
+        #       'SUBJECT2': {
+        #               'Attendance': N,
+        #               'Grades': [N, N, N, ...]
+        #           },
+        #           ...
+        #       },
+        #   'STUDENT2':
+        #       {
+        #           ...
+        #       },
+        #       ...
+        #}
+        self.students_data = students_data or {}
 
-    def add_grade(self, grade):
-        self.grades.append(grade)
+    def add_student(self, student_data):
+        # {
+        #   'STUDENT':
+        #       {
+        #           'SUBJECT': 
+        #               {
+        #                   'Attendance': N,
+        #                   'Grades': [N, N, N, ...]
+        #               },
+        #           ...
+        #       }
+        self.students_data.update(student_data)
 
-    def add_attendance(self, attendance):
-        "True if student was present, else False"
-        self.attendances.append(attendance)
+    def add_grade(self, student, subject, grade):
+        self.students_data[student][subject]['Grades'].append(grade)
 
-    def get_average_grade(self):
-        return sum(self.grades) / len(self.grades)
+    def summarize_attendance(self):
+        return {stud: sum(v['Attendance'] for v in subj.values())
+                for stud, subj in self.students_data.iteritems()}
 
-    def count_number_of_attendances(self):
-        return sum(self.attendances)
+    def summarize_grades(self):
+        return {stud:
+                    {s: float(sum(v['Grades']))/len(v['Grades'])
+                     for s, v in subj.iteritems()}
+                for stud, subj in self.students_data.iteritems()}
 
-    def __str__(self):
-        return "{} {}".format(self.name, self.surname)
+    @classmethod
+    def from_json(cls, json_):
+        dict_ = json.loads(json_)
+        return Diary(dict_)
 
-    __unicode__ = __str__
+    def to_json(self):
+        return json.dumps(self.students_data)
 
-    __repr__ = __str__
-
-
-class Class(object):
-    def __init__(self, name, list_of_students=None):
-        "List of students is a set of students"
-        self.name = name
-        self.list_of_students = list_of_students or set()
-
-    def add_student(self, student):
-        self.list_of_students.add(student)
-
-    def count_avg_grade(self):
-        if not self.list_of_students:
-            return 0
-        return (sum(chain(stud.grades for stud in self.list_of_students))/
-                sum(len(stud.grades) for stud in self.list_of_students))
-
-    def order_students_by_grade(self):
-        return sorted(self.list_of_students, key=lambda x: x.get_average_grade,
-                reverse=True)
-
-    def __str__(self):
-        return "Class {}".format(self.name)
-
-    __unicode__ = __str__
-
-    __repr__ = __str__
-
-
-class School(object):
-    def __init__(self, list_of_classes=None):
-        self.list_of_classes = list_of_classes or set()
-
-    def order_classes_using_grade(self):
-        return sorted(self.list_of_classes, key=lambda x: x.count_avg_grade,
-                reverse=True)
+parser = argparse.ArgumentParser('Diary')
+parser.add_argument('-i', dest='input', help='input file path')
+parser.add_argument('-o', dest='output', help='output file path')
 
 
 if __name__ == '__main__':
-    # example
-    student1 = Student('student', 'one')
-    student2 = Student('student', 'two')
-    student3 = Student('student', 'three')
-    student4 = Student('student', 'four')
+    args = parser.parse_args()
 
-    class1 = Class('1A', {student1, student2})
-    class2 = Class('1B', {student3, student4})
+    students = '{}'
+    if args.input is not None:
+        with open(args.input) as input:
+            print 'reading from: {}'.format(args.input)
+            students = input.read()
 
-    school = School({class1, class2})
+    diary = Diary.from_json(students)
 
-    student1.add_attendance(True)
-    student1.add_attendance(True)
-    student1.add_attendance(False)
-    student1.add_grade(3)
-    student1.add_grade(2)
-    student1.add_grade(4)
+    from pprint import pprint
+    pprint(diary.summarize_attendance())
+    pprint(diary.summarize_grades())
 
-    student2.add_attendance(True)
-    student2.add_attendance(True)
-    student2.add_attendance(True)
-    student2.add_grade(5)
-    student2.add_grade(5)
-    student2.add_grade(4)
-
-    student3.add_attendance(True)
-    student3.add_attendance(True)
-    student3.add_attendance(True)
-    student3.add_grade(5)
-    student3.add_grade(5)
-    student3.add_grade(5)
-
-    student4.add_attendance(True)
-    student4.add_attendance(True)
-    student4.add_attendance(True)
-    student4.add_grade(5)
-    student4.add_grade(5)
-    student4.add_grade(5)
-
-    print school.order_classes_using_grade()
-    print class1.order_students_by_grade()
-    print class2.order_students_by_grade()
+    if args.output is not None:
+        with open(args.output, 'w') as output:
+            output.write(diary.to_json())
+            print 'data written to: {}'.format(args.output)
 
